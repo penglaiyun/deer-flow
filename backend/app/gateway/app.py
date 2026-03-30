@@ -3,18 +3,22 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 
 from app.gateway.config import get_gateway_config
+from app.gateway.deps import langgraph_runtime
 from app.gateway.routers import (
     agents,
     artifacts,
+    assistants_compat,
     channels,
     mcp,
     memory,
     models,
+    runs,
     skills,
     suggestions,
+    thread_runs,
+    threads,
     uploads,
 )
 from deerflow.config.app_config import get_app_config
@@ -44,29 +48,29 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     config = get_gateway_config()
     logger.info(f"Starting API Gateway on {config.host}:{config.port}")
 
-    # NOTE: MCP tools initialization is NOT done here because:
-    # 1. Gateway doesn't use MCP tools - they are used by Agents in the LangGraph Server
-    # 2. Gateway and LangGraph Server are separate processes with independent caches
-    # MCP tools are lazily initialized in LangGraph Server when first needed
+    # Initialize LangGraph runtime components (StreamBridge, RunManager, checkpointer, store)
+    async with langgraph_runtime(app):
+        logger.info("LangGraph runtime initialised")
 
-    # Start IM channel service if any channels are configured
-    try:
-        from app.channels.service import start_channel_service
+        # Start IM channel service if any channels are configured
+        try:
+            from app.channels.service import start_channel_service
 
-        channel_service = await start_channel_service()
-        logger.info("Channel service started: %s", channel_service.get_status())
-    except Exception:
-        logger.exception("No IM channels configured or channel service failed to start")
+            channel_service = await start_channel_service()
+            logger.info("Channel service started: %s", channel_service.get_status())
+        except Exception:
+            logger.exception("No IM channels configured or channel service failed to start")
 
-    yield
+        yield
 
-    # Stop channel service on shutdown
-    try:
-        from app.channels.service import stop_channel_service
+        # Stop channel service on shutdown
+        try:
+            from app.channels.service import stop_channel_service
 
-        await stop_channel_service()
-    except Exception:
-        logger.exception("Failed to stop channel service")
+            await stop_channel_service()
+        except Exception:
+            logger.exception("Failed to stop channel service")
+
     logger.info("Shutting down API Gateway")
 
 
@@ -129,6 +133,10 @@ This gateway provides custom endpoints for models, MCP configuration, skills, an
                 "description": "Upload and manage user files for threads",
             },
             {
+                "name": "threads",
+                "description": "Manage DeerFlow thread-local filesystem data",
+            },
+            {
                 "name": "agents",
                 "description": "Create and manage custom agents with per-agent config and prompts",
             },
@@ -141,8 +149,12 @@ This gateway provides custom endpoints for models, MCP configuration, skills, an
                 "description": "Manage IM channel integrations (Feishu, Slack, Telegram)",
             },
             {
-                "name": "agent-tools",
-                "description": "Tool-safe proxy endpoints for agent read/write access to business data",
+                "name": "assistants-compat",
+                "description": "LangGraph Platform-compatible assistants API (stub)",
+            },
+            {
+                "name": "runs",
+                "description": "LangGraph Platform-compatible runs lifecycle (create, stream, cancel)",
             },
             {
                 "name": "health",
@@ -151,19 +163,7 @@ This gateway provides custom endpoints for models, MCP configuration, skills, an
         ],
     )
 
-    cors_origins = [
-        origin.strip().rstrip("/").strip('"').strip("'")
-        for origin in get_gateway_config().cors_origins
-        if origin.strip().strip('"').strip("'")
-    ]
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=cors_origins or ["http://localhost:3000", "http://localhost:5173"],
-        allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+    # CORS is handled by nginx - no need for FastAPI middleware
 
     # Include routers
     # Models API is mounted at /api/models
@@ -184,6 +184,9 @@ This gateway provides custom endpoints for models, MCP configuration, skills, an
     # Uploads API is mounted at /api/threads/{thread_id}/uploads
     app.include_router(uploads.router)
 
+    # Thread cleanup API is mounted at /api/threads/{thread_id}
+    app.include_router(threads.router)
+
     # Agents API is mounted at /api/agents
     app.include_router(agents.router)
 
@@ -192,6 +195,15 @@ This gateway provides custom endpoints for models, MCP configuration, skills, an
 
     # Channels API is mounted at /api/channels
     app.include_router(channels.router)
+
+    # Assistants compatibility API (LangGraph Platform stub)
+    app.include_router(assistants_compat.router)
+
+    # Thread Runs API (LangGraph Platform-compatible runs lifecycle)
+    app.include_router(thread_runs.router)
+
+    # Stateless Runs API (stream/wait without a pre-existing thread)
+    app.include_router(runs.router)
 
     @app.get("/health", tags=["health"])
     async def health_check() -> dict:
