@@ -8,6 +8,13 @@ export function getBackendBaseURL() {
   }
 }
 
+export function getBusinessAPIBaseURL() {
+  if (env.NEXT_PUBLIC_BUSINESS_API_BASE_URL) {
+    return env.NEXT_PUBLIC_BUSINESS_API_BASE_URL;
+  }
+  return getBackendBaseURL();
+}
+
 export function getLangGraphBaseURL(isMock?: boolean) {
   if (env.NEXT_PUBLIC_LANGGRAPH_BASE_URL) {
     return env.NEXT_PUBLIC_LANGGRAPH_BASE_URL;

@@ -9,6 +9,7 @@ class GatewayConfig(BaseModel):
     host: str = Field(default="0.0.0.0", description="Host to bind the gateway server")
     port: int = Field(default=8001, description="Port to bind the gateway server")
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"], description="Allowed CORS origins")
+    business_api_base_url: str = Field(default="http://localhost:8101", description="Business API base URL")
 
 
 _gateway_config: GatewayConfig | None = None
@@ -18,10 +19,16 @@ def get_gateway_config() -> GatewayConfig:
     """Get gateway config, loading from environment if available."""
     global _gateway_config
     if _gateway_config is None:
-        cors_origins_str = os.getenv("CORS_ORIGINS", "http://localhost:3000")
+        cors_origins_str = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:5173")
+        cors_origins = [
+            origin.strip().strip('"').strip("'")
+            for origin in cors_origins_str.split(",")
+            if origin.strip().strip('"').strip("'")
+        ]
         _gateway_config = GatewayConfig(
             host=os.getenv("GATEWAY_HOST", "0.0.0.0"),
             port=int(os.getenv("GATEWAY_PORT", "8001")),
-            cors_origins=cors_origins_str.split(","),
+            cors_origins=cors_origins,
+            business_api_base_url=os.getenv("BUSINESS_API_BASE_URL", "http://localhost:8101").rstrip("/"),
         )
     return _gateway_config

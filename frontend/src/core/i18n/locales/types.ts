@@ -104,6 +104,7 @@ export interface Translations {
     newChat: string;
     chats: string;
     demoChats: string;
+    console: string;
     agents: string;
   };
 
@@ -138,6 +139,7 @@ export interface Translations {
   breadcrumb: {
     workspace: string;
     chats: string;
+    console: string;
   };
 
   // Workspace
@@ -167,6 +169,7 @@ export interface Translations {
     appName: string;
     chats: string;
     newChat: string;
+    console: string;
     untitled: string;
   };
 

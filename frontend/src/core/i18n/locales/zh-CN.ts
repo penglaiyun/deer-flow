@@ -153,6 +153,7 @@ export const zhCN: Translations = {
     chats: "对话",
     recentChats: "最近的对话",
     demoChats: "演示对话",
+    console: "控制台",
     agents: "智能体",
   },
 
@@ -189,6 +190,7 @@ export const zhCN: Translations = {
   breadcrumb: {
     workspace: "工作区",
     chats: "对话",
+    console: "控制台",
   },
 
   // Workspace
@@ -218,6 +220,7 @@ export const zhCN: Translations = {
     appName: "DeerFlow",
     chats: "对话",
     newChat: "新对话",
+    console: "控制台",
     untitled: "未命名",
   },
 

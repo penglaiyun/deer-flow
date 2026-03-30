@@ -35,6 +35,107 @@ import { CopyButton } from "../copy-button";
 
 import { MarkdownContent } from "./markdown-content";
 
+type StructuredReferenceItem = {
+  id: string;
+  type: string;
+  target_id: string;
+  title: string;
+  excerpt?: string;
+  meta?: Record<string, unknown>;
+};
+
+type StructuredActionMessage = {
+  action_type: string;
+  title?: string;
+  workflow?: {
+    source_tab?: string;
+    target_stage_id?: string;
+    expected_artifact_type?: string;
+    expected_review?: boolean;
+  };
+  tool_hints?: string[];
+  references?: StructuredReferenceItem[];
+  payload?: Record<string, unknown>;
+};
+
+function parseStructuredActionMessage(content: string): StructuredActionMessage | null {
+  const raw = content.trim();
+  if (!raw) {
+    return null;
+  }
+  const fencedMatch = /```(?:json)?\s*([\s\S]*?)\s*```/i.exec(raw);
+  const candidate = fencedMatch?.[1]?.trim() ?? raw;
+  try {
+    const parsed = JSON.parse(candidate) as unknown;
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+      return null;
+    }
+    const record = parsed as Record<string, unknown>;
+    if (typeof record.action_type !== "string" || !record.action_type.trim()) {
+      return null;
+    }
+    return record as StructuredActionMessage;
+  } catch {
+    return null;
+  }
+}
+
+function StructuredActionCard({
+  action,
+  isZh,
+}: {
+  action: StructuredActionMessage;
+  isZh: boolean;
+}) {
+  const references = Array.isArray(action.references) ? action.references : [];
+  const toolHints = Array.isArray(action.tool_hints) ? action.tool_hints : [];
+
+  return (
+    <div className="w-full rounded-xl border border-neutral-700 bg-neutral-900/80 px-4 py-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant="secondary">{action.action_type}</Badge>
+        {action.workflow?.target_stage_id ? (
+          <Badge variant="outline">
+            {isZh ? "目标阶段" : "Target Stage"}: {action.workflow.target_stage_id}
+          </Badge>
+        ) : null}
+      </div>
+      <div className="mt-2 text-sm font-medium text-neutral-100">
+        {action.title ?? (isZh ? "结构化动作" : "Structured action")}
+      </div>
+      {references.length > 0 ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {references.map((reference) => (
+            <button
+              key={reference.id}
+              type="button"
+              onClick={() => {
+                window.dispatchEvent(
+                  new CustomEvent("director:navigate-reference", {
+                    detail: {
+                      referenceType: reference.type,
+                      sourceTab: action.workflow?.source_tab,
+                      targetId: reference.target_id,
+                    },
+                  }),
+                );
+              }}
+              className="rounded-full border border-neutral-700 bg-neutral-800 px-3 py-1 text-xs text-neutral-200 hover:bg-neutral-700"
+            >
+              {reference.title}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {toolHints.length > 0 ? (
+        <div className="mt-3 text-xs text-neutral-400">
+          {isZh ? "工具提示" : "Tool hints"}: {toolHints.join(", ")}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function MessageListItem({
   className,
   message,
@@ -119,6 +220,8 @@ function MessageContent_({
   const rehypePlugins = useRehypeSplitWordsIntoSpans(isLoading);
   const isHuman = message.type === "human";
   const { thread_id } = useParams<{ thread_id: string }>();
+  const { locale } = useI18n();
+  const isZh = locale.startsWith("zh");
   const components = useMemo(
     () => ({
       img: (props: ImgHTMLAttributes<HTMLImageElement>) => (
@@ -149,6 +252,10 @@ function MessageContent_({
     }
     return rawContent ?? "";
   }, [rawContent, isHuman]);
+  const structuredAction = useMemo(
+    () => parseStructuredActionMessage(contentToDisplay),
+    [contentToDisplay],
+  );
 
   const filesList =
     files && files.length > 0 && thread_id ? (
@@ -184,18 +291,24 @@ function MessageContent_({
   }
 
   if (isHuman) {
-    const messageResponse = contentToDisplay ? (
-      <AIElementMessageResponse
-        remarkPlugins={humanMessagePlugins.remarkPlugins}
-        rehypePlugins={humanMessagePlugins.rehypePlugins}
-        components={components}
-      >
-        {contentToDisplay}
-      </AIElementMessageResponse>
-    ) : null;
+    const messageResponse =
+      contentToDisplay && !structuredAction ? (
+        <AIElementMessageResponse
+          remarkPlugins={humanMessagePlugins.remarkPlugins}
+          rehypePlugins={humanMessagePlugins.rehypePlugins}
+          components={components}
+        >
+          {contentToDisplay}
+        </AIElementMessageResponse>
+      ) : null;
     return (
       <div className={cn("ml-auto flex flex-col gap-2", className)}>
         {filesList}
+        {structuredAction ? (
+          <AIElementMessageContent className="w-fit">
+            <StructuredActionCard action={structuredAction} isZh={isZh} />
+          </AIElementMessageContent>
+        ) : null}
         {messageResponse && (
           <AIElementMessageContent className="w-fit">
             {messageResponse}

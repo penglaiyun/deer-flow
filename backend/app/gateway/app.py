@@ -3,6 +3,7 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.gateway.config import get_gateway_config
 from app.gateway.routers import (
@@ -140,13 +141,29 @@ This gateway provides custom endpoints for models, MCP configuration, skills, an
                 "description": "Manage IM channel integrations (Feishu, Slack, Telegram)",
             },
             {
+                "name": "agent-tools",
+                "description": "Tool-safe proxy endpoints for agent read/write access to business data",
+            },
+            {
                 "name": "health",
                 "description": "Health check and system status endpoints",
             },
         ],
     )
 
-    # CORS is handled by nginx - no need for FastAPI middleware
+    cors_origins = [
+        origin.strip().rstrip("/").strip('"').strip("'")
+        for origin in get_gateway_config().cors_origins
+        if origin.strip().strip('"').strip("'")
+    ]
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=cors_origins or ["http://localhost:3000", "http://localhost:5173"],
+        allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
     # Include routers
     # Models API is mounted at /api/models

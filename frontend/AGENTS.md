@@ -1,3 +1,13 @@
+<!-- Parent: ../AGENTS.md -->
+<!-- Generated: 2026-03-30 | Updated: 2026-03-30 -->
+
+# DeerFlow Frontend
+
+## Purpose
+DeerFlow 的 Next.js 16 前端应用，提供基于线程的 AI 对话界面，支持流式响应、技能系统、MCP 集成和工件管理。
+
+> 详见 [CLAUDE.md](CLAUDE.md) 获取完整开发指南
+
 # Agents Architecture
 
 ## Overview

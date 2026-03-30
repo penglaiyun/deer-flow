@@ -22,14 +22,103 @@ export type ToolEndEvent = {
   data: unknown;
 };
 
+export type StreamDebugEvent = {
+  source: "langchain" | "update" | "custom";
+  data: unknown;
+};
+
 export type ThreadStreamOptions = {
   threadId?: string | null | undefined;
+  assistantId?: string;
   context: LocalSettings["context"];
   isMock?: boolean;
   onStart?: (threadId: string) => void;
   onFinish?: (state: AgentThreadState) => void;
   onToolEnd?: (event: ToolEndEvent) => void;
+  onToken?: (token: string) => void;
+  onStreamEvent?: (event: StreamDebugEvent) => void;
 };
+
+function extractTokenFromLangChainStreamEvent(event: unknown): string | undefined {
+  if (typeof event !== "object" || event === null) {
+    return undefined;
+  }
+
+  const eventName = Reflect.get(event, "event");
+  if (typeof eventName !== "string" || !eventName.endsWith("_stream")) {
+    return undefined;
+  }
+
+  const data = Reflect.get(event, "data");
+  if (typeof data !== "object" || data === null) {
+    return undefined;
+  }
+
+  const extractFromContentLike = (value: unknown): string => {
+    if (typeof value === "string") {
+      return value;
+    }
+    if (!Array.isArray(value)) {
+      return "";
+    }
+    return value
+      .map((item) => {
+        if (typeof item === "string") {
+          return item;
+        }
+        if (typeof item !== "object" || item === null) {
+          return "";
+        }
+        const text = Reflect.get(item, "text");
+        if (typeof text === "string") {
+          return text;
+        }
+        const delta = Reflect.get(item, "delta");
+        if (typeof delta === "string") {
+          return delta;
+        }
+        return "";
+      })
+      .join("");
+  };
+
+  const extractFromChunk = (chunk: unknown): string => {
+    if (typeof chunk === "string") {
+      return chunk;
+    }
+    if (typeof chunk !== "object" || chunk === null) {
+      return "";
+    }
+    const content = Reflect.get(chunk, "content");
+    const contentText = extractFromContentLike(content);
+    if (contentText) {
+      return contentText;
+    }
+    const text = Reflect.get(chunk, "text");
+    if (typeof text === "string") {
+      return text;
+    }
+    const delta = Reflect.get(chunk, "delta");
+    if (typeof delta === "string") {
+      return delta;
+    }
+    return "";
+  };
+
+  const chunk = Reflect.get(data, "chunk");
+  const chunkText = extractFromChunk(chunk);
+  if (chunkText) {
+    return chunkText;
+  }
+
+  const message = Reflect.get(data, "message");
+  const messageText = extractFromChunk(message);
+  if (messageText) {
+    return messageText;
+  }
+
+  return undefined;
+}
 
 function getStreamErrorMessage(error: unknown): string {
   if (typeof error === "string" && error.trim()) {
@@ -56,11 +145,14 @@ function getStreamErrorMessage(error: unknown): string {
 
 export function useThreadStream({
   threadId,
+  assistantId,
   context,
   isMock,
   onStart,
   onFinish,
   onToolEnd,
+  onToken,
+  onStreamEvent,
 }: ThreadStreamOptions) {
   const { t } = useI18n();
   // Track the thread ID that is currently streaming to handle thread changes during streaming
@@ -74,17 +166,27 @@ export function useThreadStream({
     onStart,
     onFinish,
     onToolEnd,
+    onToken,
+    onStreamEvent,
   });
 
   // Keep listeners ref updated with latest callbacks
   useEffect(() => {
-    listeners.current = { onStart, onFinish, onToolEnd };
-  }, [onStart, onFinish, onToolEnd]);
+    listeners.current = {
+      onStart,
+      onFinish,
+      onToolEnd,
+      onToken,
+      onStreamEvent,
+    };
+  }, [onStart, onFinish, onToolEnd, onToken, onStreamEvent]);
 
   useEffect(() => {
     const normalizedThreadId = threadId ?? null;
-    if (!normalizedThreadId) {
-      // Just reset for new thread creation when threadId becomes null/undefined
+    if (normalizedThreadId !== threadIdRef.current) {
+      startedRef.current = false;
+      setOnStreamThreadId(normalizedThreadId);
+    } else if (!normalizedThreadId) {
       startedRef.current = false;
       setOnStreamThreadId(normalizedThreadId);
     }
@@ -111,7 +213,7 @@ export function useThreadStream({
 
   const thread = useStream<AgentThreadState>({
     client: getAPIClient(isMock),
-    assistantId: "lead_agent",
+    assistantId: assistantId ?? "lead_agent",
     threadId: onStreamThreadId,
     reconnectOnMount: true,
     fetchStateHistory: { limit: 1 },
@@ -120,14 +222,26 @@ export function useThreadStream({
       setOnStreamThreadId(meta.thread_id);
     },
     onLangChainEvent(event) {
+      listeners.current.onStreamEvent?.({
+        source: "langchain",
+        data: event,
+      });
       if (event.event === "on_tool_end") {
         listeners.current.onToolEnd?.({
           name: event.name,
           data: event.data,
         });
       }
+      const token = extractTokenFromLangChainStreamEvent(event);
+      if (token) {
+        listeners.current.onToken?.(token);
+      }
     },
     onUpdateEvent(data) {
+      listeners.current.onStreamEvent?.({
+        source: "update",
+        data,
+      });
       const updates: Array<Partial<AgentThreadState> | null> = Object.values(
         data || {},
       );
@@ -157,6 +271,10 @@ export function useThreadStream({
       }
     },
     onCustomEvent(event: unknown) {
+      listeners.current.onStreamEvent?.({
+        source: "custom",
+        data: event,
+      });
       if (
         typeof event === "object" &&
         event !== null &&
@@ -244,7 +362,9 @@ export function useThreadStream({
       }
       setOptimisticMessages(newOptimistic);
 
-      _handleOnStart(threadId);
+      if (threadId && thread.messages.length > 0) {
+        _handleOnStart(threadId);
+      }
 
       let uploadedFileInfo: UploadedFileInfo[] = [];
 
@@ -363,12 +483,22 @@ export function useThreadStream({
             threadId: threadId,
             streamSubgraphs: true,
             streamResumable: true,
+            streamMode: [
+              "values",
+              "messages",
+              "messages-tuple",
+              "updates",
+              "events",
+              "tasks",
+              "checkpoints",
+              "custom",
+            ],
             config: {
               recursion_limit: 1000,
             },
             context: {
-              ...extraContext,
               ...context,
+              ...extraContext,
               thinking_enabled: context.mode !== "flash",
               is_plan_mode: context.mode === "pro" || context.mode === "ultra",
               subagent_enabled: context.mode === "ultra",

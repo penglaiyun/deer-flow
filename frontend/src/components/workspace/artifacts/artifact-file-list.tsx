@@ -26,10 +26,12 @@ export function ArtifactFileList({
   className,
   files,
   threadId,
+  onFileClick,
 }: {
   className?: string;
   files: string[];
   threadId: string;
+  onFileClick?: (filepath: string, threadId: string) => void;
 }) {
   const { t } = useI18n();
   const { select: selectArtifact, setOpen } = useArtifacts();
@@ -37,10 +39,11 @@ export function ArtifactFileList({
 
   const handleClick = useCallback(
     (filepath: string) => {
+      onFileClick?.(filepath, threadId);
       selectArtifact(filepath);
       setOpen(true);
     },
-    [selectArtifact, setOpen],
+    [onFileClick, selectArtifact, setOpen, threadId],
   );
 
   const handleInstallSkill = useCallback(

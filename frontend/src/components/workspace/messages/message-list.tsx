@@ -1,3 +1,4 @@
+import type { Message } from "@langchain/langgraph-sdk";
 import type { BaseStream } from "@langchain/langgraph-sdk/react";
 
 import {
@@ -34,11 +35,23 @@ export function MessageList({
   threadId,
   thread,
   paddingBottom = 160,
+  onArtifactClick,
+  streamAsReceived = false,
+  rawStreamingText,
+  appendedMessages = [],
+  showOnlyAppendedMessages = false,
+  sequentialMessageKinds = "all",
 }: {
   className?: string;
   threadId: string;
   thread: BaseStream<AgentThreadState>;
   paddingBottom?: number;
+  onArtifactClick?: (filepath: string, threadId: string) => void;
+  streamAsReceived?: boolean;
+  rawStreamingText?: string;
+  appendedMessages?: Message[];
+  showOnlyAppendedMessages?: boolean;
+  sequentialMessageKinds?: "all" | "human_ai";
 }) {
   const { t } = useI18n();
   const rehypePlugins = useRehypeSplitWordsIntoSpans(thread.isLoading);
@@ -52,7 +65,22 @@ export function MessageList({
       className={cn("flex size-full flex-col justify-center", className)}
     >
       <ConversationContent className="mx-auto w-full max-w-(--container-width-md) gap-8 pt-12">
-        {groupMessages(messages, (group) => {
+        {streamAsReceived
+          ? (showOnlyAppendedMessages ? appendedMessages : [...messages, ...appendedMessages])
+              .filter((message) => {
+                if (sequentialMessageKinds === "human_ai") {
+                  return message.type === "human" || message.type === "ai";
+                }
+                return true;
+              })
+              .map((message, index) => (
+                <MessageListItem
+                  key={message.id ?? `${message.type}-${index}`}
+                  message={message}
+                  isLoading={thread.isLoading}
+                />
+              ))
+          : groupMessages(messages, (group) => {
           if (group.type === "human" || group.type === "assistant") {
             return group.messages.map((msg) => {
               return (
@@ -94,7 +122,11 @@ export function MessageList({
                     className="mb-4"
                   />
                 )}
-                <ArtifactFileList files={files} threadId={threadId} />
+                <ArtifactFileList
+                  files={files}
+                  threadId={threadId}
+                  onFileClick={onArtifactClick}
+                />
               </div>
             );
           } else if (group.type === "assistant:subagent") {
@@ -199,6 +231,19 @@ export function MessageList({
           );
         })}
         {thread.isLoading && <StreamingIndicator className="my-4" />}
+        {streamAsReceived && rawStreamingText ? (
+          <MessageListItem
+            key="raw-token-stream"
+            message={
+              {
+                type: "ai",
+                id: "raw-token-stream",
+                content: rawStreamingText,
+              } as Message
+            }
+            isLoading={thread.isLoading}
+          />
+        ) : null}
         <div style={{ height: `${paddingBottom}px` }} />
       </ConversationContent>
     </Conversation>

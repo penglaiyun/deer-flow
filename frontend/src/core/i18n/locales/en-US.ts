@@ -159,6 +159,7 @@ export const enUS: Translations = {
     chats: "Chats",
     recentChats: "Recent chats",
     demoChats: "Demo chats",
+    console: "Console",
     agents: "Agents",
   },
 
@@ -200,6 +201,7 @@ export const enUS: Translations = {
   breadcrumb: {
     workspace: "Workspace",
     chats: "Chats",
+    console: "Console",
   },
 
   // Workspace
@@ -229,6 +231,7 @@ export const enUS: Translations = {
     appName: "DeerFlow",
     chats: "Chats",
     newChat: "New chat",
+    console: "Console",
     untitled: "Untitled",
   },
 

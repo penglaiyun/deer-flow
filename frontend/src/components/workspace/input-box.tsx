@@ -106,6 +106,7 @@ export function InputBox({
   context,
   extraHeader,
   isNewThread,
+  hideThreadBottomExtras,
   threadId,
   initialValue,
   onContextChange,
@@ -125,6 +126,7 @@ export function InputBox({
   };
   extraHeader?: React.ReactNode;
   isNewThread?: boolean;
+  hideThreadBottomExtras?: boolean;
   threadId: string;
   initialValue?: string;
   onContextChange?: (
@@ -747,12 +749,14 @@ export function InputBox({
           />
         </PromptInputTools>
       </PromptInputFooter>
-      {isNewThread && searchParams.get("mode") !== "skill" && (
+      {!hideThreadBottomExtras &&
+        isNewThread &&
+        searchParams.get("mode") !== "skill" && (
         <div className="absolute right-0 -bottom-20 left-0 z-0 flex items-center justify-center">
           <SuggestionList />
         </div>
       )}
-      {!isNewThread && (
+      {!hideThreadBottomExtras && !isNewThread && (
         <div className="bg-background absolute right-0 -bottom-[17px] left-0 z-0 h-4"></div>
       )}
       </PromptInput>

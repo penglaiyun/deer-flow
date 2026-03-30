@@ -176,6 +176,11 @@ class DeerFlowClient:
             "is_plan_mode": overrides.get("plan_mode", self._plan_mode),
             "subagent_enabled": overrides.get("subagent_enabled", self._subagent_enabled),
         }
+        for key, value in overrides.items():
+            if key in {"model_name", "thinking_enabled", "plan_mode", "subagent_enabled", "recursion_limit"}:
+                continue
+            if value is not None:
+                configurable[key] = value
         return RunnableConfig(
             configurable=configurable,
             recursion_limit=overrides.get("recursion_limit", 100),

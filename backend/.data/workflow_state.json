@@ -1,0 +1,98 @@
+{
+  "workflows": {
+    "demo:1": {
+      "project_code": "demo",
+      "episode_id": 1,
+      "current_stage": "copywriting",
+      "overall_status": "pending",
+      "active_run_id": null,
+      "last_decision": null,
+      "next_stage": "script",
+      "updated_at": "2026-03-28T09:05:44.800624Z",
+      "stages": [
+        {
+          "stage_id": "copywriting",
+          "title": "文案",
+          "owner_agent": "writer",
+          "status": "pending",
+          "can_enter": true,
+          "can_rollback": false,
+          "summary": null
+        },
+        {
+          "stage_id": "script",
+          "title": "剧本",
+          "owner_agent": "writer",
+          "status": "pending",
+          "can_enter": false,
+          "can_rollback": true,
+          "summary": null
+        },
+        {
+          "stage_id": "director_analysis",
+          "title": "导演分析",
+          "owner_agent": "director",
+          "status": "pending",
+          "can_enter": false,
+          "can_rollback": true,
+          "summary": null
+        },
+        {
+          "stage_id": "character_design",
+          "title": "角色设计",
+          "owner_agent": "art-director",
+          "status": "pending",
+          "can_enter": false,
+          "can_rollback": true,
+          "summary": null
+        },
+        {
+          "stage_id": "design_images",
+          "title": "设定图生成",
+          "owner_agent": "art-director",
+          "status": "pending",
+          "can_enter": false,
+          "can_rollback": true,
+          "summary": null
+        },
+        {
+          "stage_id": "storyboard",
+          "title": "故事板/分镜",
+          "owner_agent": "storyboard-artist",
+          "status": "pending",
+          "can_enter": false,
+          "can_rollback": true,
+          "summary": null
+        },
+        {
+          "stage_id": "storyboard_images",
+          "title": "分镜图生成",
+          "owner_agent": "art-director",
+          "status": "pending",
+          "can_enter": false,
+          "can_rollback": true,
+          "summary": null
+        },
+        {
+          "stage_id": "video_generation",
+          "title": "生成视频",
+          "owner_agent": "art-director",
+          "status": "pending",
+          "can_enter": false,
+          "can_rollback": true,
+          "summary": null
+        },
+        {
+          "stage_id": "editing",
+          "title": "剪辑",
+          "owner_agent": "director",
+          "status": "pending",
+          "can_enter": false,
+          "can_rollback": true,
+          "summary": null
+        }
+      ]
+    }
+  },
+  "runs": {}
+}
